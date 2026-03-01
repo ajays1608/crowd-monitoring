@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AI Crowd Monitor Pro</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Segoe UI',Arial,sans-serif;background:linear-gradient(135deg,#667eea,#764ba2);min-height:100vh;padding:20px;position:relative;}
+        .container{max-width:1400px;margin:0 auto;background:rgba(255,255,255,0.97);border-radius:20px;padding:30px;box-shadow:0 20px 60px rgba(0,0,0,0.2)}
+        h1{text-align:center;color:#2c3e50;font-size:2.5em;margin-bottom:5px}
+        .sub{text-align:center;color:#7f8c8d;margin-bottom:30px}
+        
+        .upload-box{background:#f8f9fa;border:3px dashed #667eea;border-radius:15px;padding:30px;text-align:center;margin-bottom:25px;}
+        .ip-input { padding: 15px 25px; border-radius: 50px; border: 2px solid #667eea; width: 60%; font-size: 1.1em; outline: none; margin-bottom: 10px;}
+        .file-preview{margin:10px 0;font-weight:bold;color:#2c3e50;}
+        
+        .btn-row{display:flex;gap:15px;justify-content:center;flex-wrap:wrap;margin-top:15px}
+        .btn{padding:15px 35px;border:none;border-radius:50px;font-size:1.1em;cursor:pointer;text-decoration:none; display:inline-block; transition:0.3s;}
+        .btn-analyze{background:linear-gradient(45deg,#28a745,#20c997);color:white;}
+        .btn-live{background:linear-gradient(45deg,#ff6b6b,#feca57);color:white;}
+        .btn:hover{transform:translateY(-3px);box-shadow:0 12px 25px rgba(0,0,0,0.2)}
+        
+        /* Loading Animation */
+        .progress-wrap{display:none;margin:15px 0}
+        .progress-bar{height:10px;background:#eee;border-radius:10px;overflow:hidden}
+        .progress-fill{height:100%;background:linear-gradient(90deg,#667eea,#764ba2);border-radius:10px;animation:progress 2s infinite}
+        @keyframes progress{0%{width:10%}50%{width:80%}100%{width:10%}}
+        
+        /* Video and Graph */
+        .video-container { text-align: center; margin: 30px auto; max-width: 1000px; }
+        .video-card { background: white; border-radius: 20px; padding: 25px; box-shadow: 0 15px 35px rgba(0,0,0,0.15); border: 2px solid #eee;}
+        .video-card img { width: 100%; height: auto; border-radius: 12px; border: 3px solid #34495e; margin-bottom: 15px; min-height: 400px; background: #2c3e50;}
+        .dashboard-panel { background: #f8f9fa; padding: 20px; border-radius: 15px; margin-top: 15px; border: 1px solid #ddd;}
+        
+        /* SIREN ALERT BANNER */
+        .siren-alert { display: none; background: #e74c3c; color: white; padding: 15px; border-radius: 10px; font-weight: bold; font-size:1.4em; margin-bottom: 15px; animation: flash 1s infinite; }
+        @keyframes flash { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+
+        /* Static Images */
+        .results{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:25px;margin:30px 0}
+        .card{background:white;border-radius:20px;padding:20px;box-shadow:0 10px 30px rgba(0,0,0,0.1);}
+        .card img{width:100%;height:260px;object-fit:cover;border-radius:12px;background:#eee}
+        
+        .stats{background:linear-gradient(135deg,#667eea,#764ba2);color:white;border-radius:20px;padding:30px;text-align:center;}
+        .risk-badge{font-size:2.8em;font-weight:bold;padding:20px;border-radius:15px;margin:15px 0;display:inline-block}
+        .safe-bg{background:rgba(40,167,69,0.25)}
+        .crowd-bg{background:rgba(255,193,7,0.25)}
+        .danger-bg{background:rgba(220,53,69,0.25)}
+        
+        .logout-btn{position:absolute; top:20px; right:30px; background:#e74c3c; color:white; padding:10px 20px; border-radius:20px; text-decoration:none; font-weight:bold;}
+        .history-btn{position:absolute; top:20px; left:30px; background:#f39c12; color:white; padding:10px 20px; border-radius:20px; text-decoration:none; font-weight:bold;}
+    </style>
+</head>
+<body>
+
+<a href="/history" class="history-btn">📊 View Analytics Report</a>
+<a href="/logout" class="logout-btn">🚪 Logout</a>
+
+<div class="container">
+    <h1>🚨 AI Crowd Monitor</h1>
+    <p class="sub">Real-Time Danger Zone Tracking & Analysis</p>
+
+    <!-- ================= UPLOAD MODE ================= -->
+    {% if mode == 'upload' %}
+    <form method="POST" enctype="multipart/form-data" id="uploadForm">
+        <div class="upload-box" style="border-color: #feca57; background: #fffcf5;">
+            <h3>📱 Connect Mobile Phone (CCTV)</h3>
+            <p style="color:#7f8c8d; margin-bottom:15px;">Use "IP Webcam" app. Paste URL below (Add <b>/video</b> at the end)</p>
+            <input type="text" name="ip_url" class="ip-input" placeholder="http://192.168.1.15:8080/video">
+            <br>
+            <button type="submit" class="btn btn-live">📡 Start Mobile DL Tracking</button>
+        </div>
+
+        <h2 style="text-align:center; color:#7f8c8d; margin: 20px 0;">— OR —</h2>
+
+        <div class="upload-box" id="dropZone">
+            <div style="font-size:3em">📂</div>
+            <p style="font-size:1.2em;color:#7f8c8d; margin:10px 0">Drag File (Image/Video) here, or click Browse</p>
+            <input type="file" id="fileInput" name="file" accept="image/*,video/*" style="display:none">
+            <label for="fileInput" class="btn" style="background:#667eea;color:white;cursor:pointer">📁 Choose File</label>
+            <div class="file-preview" id="filePreview"></div>
+            
+            <div class="btn-row">
+                <button type="submit" class="btn btn-analyze">🔍 Analyze File</button>
+                <a href="/webcam" class="btn" style="background:#34495e; color:white;">💻 Use Laptop Webcam</a>
+            </div>
+        </div>
+
+        <div class="progress-wrap" id="progressWrap">
+            <div class="progress-bar"><div class="progress-fill"></div></div>
+            <p style="margin-top:10px;">⚙️ Launching Deep Learning Model...</p>
+        </div>
+    </form>
+
+    <script>
+        const input = document.getElementById('fileInput');
+        const dropZone = document.getElementById('dropZone');
+        const preview = document.getElementById('filePreview');
+        input.addEventListener('change', () => { if(input.files[0]) preview.textContent = '✅ Selected: ' + input.files[0].name; });
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(e => { dropZone.addEventListener(e, ev => { ev.preventDefault(); ev.stopPropagation(); }, false); });
+        dropZone.addEventListener('drop', e => { if (e.dataTransfer.files.length > 0) { input.files = e.dataTransfer.files; input.dispatchEvent(new Event('change')); }});
+        document.getElementById('uploadForm').addEventListener('submit', () => { if(input.files.length > 0 || document.querySelector('.ip-input').value) document.getElementById('progressWrap').style.display = 'block'; });
+    </script>
+    
+    <!-- ================= VIDEO/LIVE MODE ================= -->
+    {% elif mode == 'video' %}
+    <div class="video-container">
+        <div class="video-card">
+            <!-- AUDIO ALARM BANNER -->
+            <div id="sirenWarning" class="siren-alert">⚠️ DANGER: ZONE LIMIT EXCEEDED! AUDIO SIREN ACTIVATED ⚠️</div>
+            
+            <h3 style="color:#2c3e50; font-size: 1.8em; margin-bottom: 20px;">🎥 Live Danger Zone Tracking</h3>
+            
+            <img src="{{ url_for('video_feed') }}" alt="Live Feed Processing..." 
+                 onerror="this.onerror=null; this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'100%\' height=\'300\'><rect width=\'100%\' height=\'100%\' fill=\'%23e74c3c\'/><text x=\'50%\' y=\'50%\' dominant-baseline=\'middle\' text-anchor=\'middle\' font-size=\'20\' fill=\'white\' font-family=\'Arial\'>ERROR: CAMERA IS BLOCKED OR OFFLINE</text></svg>';">
+
+            <div class="dashboard-panel">
+                <h3>📈 Real-Time Zone Capacity Graph</h3>
+                <canvas id="dlChart" height="80"></canvas>
+            </div>
+            
+            <a href="/" class="btn" style="background: #34495e; color: white; margin-top: 20px;">⬅️ Stop Tracking and Go Back</a>
+        </div>
+    </div>
+
+    <!-- ================= STATIC IMAGE MODE ================= -->
+    {% elif mode == 'image' %}
+    
+    <!-- ❌ REMOVED IMAGE AUDIO/RED BANNER ALERT HERE ❌ -->
+
+    <div class="results">
+        <div class="card"><h3>📸 Original Image</h3><img src="{{ original }}" alt="Original"></div>
+        <div class="card"><h3>👥 {{ count }} Persons Detected</h3><img src="{{ annotated }}" alt="Detected"></div>
+        <!-- ✅ FIXED HEATMAP IMAGE CALL -->
+        <div class="card"><h3>🔥 Density Heatmap</h3><img src="{{ heatmap }}" alt="Heatmap Processing..."></div>
+    </div>
+    <div class="stats">
+        <h2>📊 Analysis Results</h2>
+        <div style="font-size:1.5em; margin: 10px 0;">Total Count: <strong>{{ count }}</strong> people</div>
+        <div class="risk-badge {% if 'Safe' in risk %}safe-bg{% elif 'Crowd' in risk %}crowd-bg{% else %}danger-bg{% endif %}">{{ risk }}</div>
+        
+        <div style="background:rgba(0,0,0,0.2); padding:20px; border-radius:15px; margin-top:20px; text-align:left;">
+            <h3>Recommendations:</h3>
+            <ul style="list-style:none; margin-top:10px;">
+                {% for rec in recs %}
+                    <li style="margin-bottom:8px;">✅ {{ rec }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        <br>
+        <a href="/" class="btn" style="background: white; color: #764ba2;">⬅️ Analyze Another File</a>
+    </div>
+    {% endif %}
+
+</div>
+
+<!-- ================= GLOBAL SIREN PLAYER ================= -->
+<script>
+    // 1. Audio Setup
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    let isSirenPlaying = false;
+
+    function playSiren() {
+        if (isSirenPlaying) return; 
+        isSirenPlaying = true;
+        if (audioCtx.state === 'suspended') audioCtx.resume(); 
+        
+        const osc = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(800, audioCtx.currentTime); 
+        osc.frequency.exponentialRampToValueAtTime(400, audioCtx.currentTime + 0.5);
+        
+        gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        osc.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.5);
+        setTimeout(() => { isSirenPlaying = false; }, 1000); 
+    }
+
+    // 2. Video Mode Alert Trigger (Only runs if Live/Video Mode)
+    {% if mode == 'video' %}
+    const ctxChart = document.getElementById('dlChart');
+    const dlChart = new Chart(ctxChart, {
+        type: 'line',
+        data: { labels: [], datasets: [{ label: 'People Inside Polygon', data: [], borderColor: '#e74c3c', backgroundColor: 'rgba(231, 76, 60, 0.2)', fill: true, tension: 0.4, pointRadius: 4 }] },
+        options: { animation: false, scales: { y: { beginAtZero: true, suggestedMax: 10 } } }
+    });
+
+    setInterval(() => {
+        fetch('/live_data').then(r => r.json()).then(data => {
+            const timeStr = new Date().toLocaleTimeString([], { hour12: false });
+            if(dlChart.data.labels.length > 20) { dlChart.data.labels.shift(); dlChart.data.datasets[0].data.shift(); }
+            dlChart.data.labels.push(timeStr);
+            dlChart.data.datasets[0].data.push(data.count);
+            dlChart.update();
+
+            const warningBanner = document.getElementById('sirenWarning');
+            if(data.limit > 0 && data.count > data.limit) {
+                warningBanner.style.display = 'block';
+                // Banner now automatically shows the dynamic limit number instead of 'undefined'
+                warningBanner.innerText = `🚨 DANGER: ${data.count} PEOPLE DETECTED! (LIMIT IS ${data.limit}) 🚨`;
+                playSiren();
+            } else {
+                warningBanner.style.display = 'none';
+            }
+        });
+    }, 1000);
+
+    // Click anywhere to allow audio to bypass browser block
+    document.body.addEventListener('click', function() {
+        if(audioCtx.state === 'suspended') audioCtx.resume();
+    }, {once:true});
+    {% endif %}
+
+    // ❌ REMOVED JAVASCRIPT STATIC IMAGE SIREN TRIGGER HERE ❌
+
+</script>
+</body>
+</html>

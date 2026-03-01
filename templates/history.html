@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Crowd History Log</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            color: white; font-family: 'Segoe UI', sans-serif;
+            min-height: 100vh; padding: 30px;
+        }
+        h2 { text-align: center; color: #00d2ff; margin-bottom: 25px; font-size: 2em; }
+        .controls { 
+            display: flex; justify-content: space-between;
+            align-items: center; margin-bottom: 20px; 
+        }
+        a.btn { 
+            background: #302b63; color: white; padding: 10px 20px; 
+            border-radius: 8px; text-decoration: none; font-size: 0.9em;
+        }
+        form button { 
+            background: #ff0055; color: white; border: none;
+            padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 0.9em;
+        }
+        table { 
+            width: 100%; border-collapse: collapse; 
+            background: rgba(255,255,255,0.05); border-radius: 12px; overflow: hidden;
+        }
+        th { 
+            background: rgba(0, 210, 255, 0.2); padding: 14px; 
+            text-align: center; color: #00d2ff; font-size: 1em;
+        }
+        td { padding: 12px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.07); }
+        tr:hover { background: rgba(255,255,255,0.05); }
+        .SAFE    { color: #00ff88; font-weight: bold; }
+        .WARNING { color: #ffa500; font-weight: bold; }
+        .BREACHED{ color: #ff0055; font-weight: bold; }
+        .empty { text-align: center; padding: 50px; opacity: 0.5; font-size: 1.2em; }
+    </style>
+</head>
+<body>
+
+    <h2>📊 Crowd History Log</h2>
+
+    <div class="controls">
+        <a href="/" class="btn">⬅️ Back to Dashboard</a>
+        <span style="opacity: 0.7;">Showing last 100 records</span>
+        <form method="POST" action="/clear_history" 
+              onsubmit="return confirm('Delete all history?')">
+            <button type="submit">🗑️ Clear History</button>
+        </form>
+    </div>
+
+    {% if rows %}
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>🕐 Timestamp</th>
+                <th>👥 Count</th>
+                <th>🏠 Room Limit</th>
+                <th>⚡ Status</th>
+                <th>📷 Source</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for i, row in enumerate(rows) %}
+            <tr>
+                <td style="opacity:0.5">{{ i + 1 }}</td>
+                <td>{{ row[0] }}</td>
+                <td style="font-size:1.2em; font-weight:bold;">{{ row[1] }}</td>
+                <td>{{ row[2] }}</td>
+                <td class="{{ row[3] }}">{{ row[3] }}</td>
+                <td>{{ row[4] }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+        <p class="empty">No crowd data recorded yet. Start a live session first!</p>
+    {% endif %}
+
+</body>
+</html>

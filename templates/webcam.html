@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Live Camera - AI Crowd Monitor</title>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Segoe UI',Arial,sans-serif;background:linear-gradient(135deg,#667eea,#764ba2);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+        .container{background:rgba(255,255,255,0.97);border-radius:20px;padding:30px;max-width:1000px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.2);text-align:center}
+        h1{color:#2c3e50;font-size:2em;margin-bottom:5px}
+        .sub{color:#7f8c8d;margin-bottom:25px}
+        .feed-wrap{border-radius:15px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,0.3)}
+        #outputCanvas{display:block;width:100%;border-radius:15px}
+        video{display:none}
+        .stats-bar{background:linear-gradient(135deg,#667eea,#764ba2);color:white;border-radius:12px;padding:15px 25px;margin:20px 0;display:flex;justify-content:space-around;align-items:center}
+        .stat-num{font-size:2em;font-weight:bold}
+        .stat-label{font-size:0.85em;opacity:0.8}
+        .badge{font-size:1.3em;padding:10px 20px;border-radius:10px;font-weight:bold}
+        .safe{background:rgba(40,167,69,0.3)}
+        .crowded{background:rgba(255,193,7,0.3)}
+        .danger{background:rgba(220,53,69,0.3)}
+        .btn-back{background:linear-gradient(45deg,#667eea,#764ba2);color:white;padding:12px 30px;border:none;border-radius:50px;font-size:1em;cursor:pointer;text-decoration:none;display:inline-block;margin-top:15px}
+        #statusMsg{color:#e74c3c;font-weight:bold;margin:10px 0}
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>📹 Live Camera Mode</h1>
+    <p class="sub">Real-time YOLOv8 crowd detection</p>
+    <div id="statusMsg"></div>
+
+    <video id="video" autoplay playsinline></video>
+    <div class="feed-wrap">
+        <canvas id="outputCanvas"></canvas>
+    </div>
+
+    <div class="stats-bar">
+        <div class="stat">
+            <div class="stat-num" id="countDisplay">0</div>
+            <div class="stat-label">People Count</div>
+        </div>
+        <div class="stat">
+            <div class="badge safe" id="riskDisplay">🟢 Safe</div>
+        </div>
+        <div class="stat">
+            <div class="stat-num" id="fpsDisplay">0</div>
+            <div class="stat-label">FPS</div>
+        </div>
+    </div>
+
+    <a href="/" class="btn-back">← Back to Main</a>
+</div>
+
+<script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('outputCanvas');
+    const ctx = canvas.getContext('2d');
+    const countDisplay = document.getElementById('countDisplay');
+    const riskDisplay = document.getElementById('riskDisplay');
+    const fpsDisplay = document.getElementById('fpsDisplay');
+    const statusMsg = document.getElementById('statusMsg');
+
+    let frameCount = 0, lastFpsTime = Date.now(), running = false;
+
+    // FIX: Lower resolution = less lag (960x540 instead of 1280x720)
+    navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 960 }, height: { ideal: 540 } }
+    })
+    .then(stream => {
+        video.srcObject = stream;
+        video.play();
+        video.onloadedmetadata = () => {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            running = true;
+            statusMsg.textContent = '';
+            sendFrame();
+        };
+    })
+    .catch(err => {
+        statusMsg.textContent = '❌ Allow camera access in your browser!';
+    });
+
+    function sendFrame() {
+        if (!running) return;
+
+        const tmp = document.createElement('canvas');
+        tmp.width = video.videoWidth;
+        tmp.height = video.videoHeight;
+        tmp.getContext('2d').drawImage(video, 0, 0);
+
+        // FIX: quality=0.6 sends smaller frames = less lag
+        tmp.toBlob(blob => {
+            blob.arrayBuffer().then(buf => {
+                fetch('/detect_frame', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/octet-stream' },
+                    body: buf
+                })
+                .then(res => {
+                    const c = res.headers.get('X-Person-Count');
+                    if (c !== null) {
+                        const n = parseInt(c);
+                        countDisplay.textContent = n;
+                        if (n < 20) { riskDisplay.textContent='🟢 Safe'; riskDisplay.className='badge safe'; }
+                        else if (n < 50) { riskDisplay.textContent='🟡 Crowded'; riskDisplay.className='badge crowded'; }
+                        else { riskDisplay.textContent='🔴 DANGEROUS'; riskDisplay.className='badge danger'; }
+                    }
+                    return res.blob();
+                })
+                .then(imgBlob => {
+                    const url = URL.createObjectURL(imgBlob);
+                    const img = new Image();
+                    img.onload = () => {
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        URL.revokeObjectURL(url);
+
+                        frameCount++;
+                        const now = Date.now();
+                        if (now - lastFpsTime >= 1000) {
+                            fpsDisplay.textContent = frameCount;
+                            frameCount = 0;
+                            lastFpsTime = now;
+                        }
+
+                        // FIX: 200ms delay = 5 FPS, much smoother and no queue buildup
+                        setTimeout(sendFrame, 200);
+                    };
+                    img.src = url;
+                })
+                .catch(() => setTimeout(sendFrame, 400));
+            });
+        }, 'image/jpeg', 0.6); // FIX: 0.6 quality = smaller size = faster upload
+    }
+</script>
+</body>
+</html>
